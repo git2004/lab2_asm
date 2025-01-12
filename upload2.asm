@@ -5,8 +5,8 @@
 maxSize                 EQU     256
 cr                      EQU     0Dh
 lf                      EQU     0Ah
-NUMBER_WORD_TO_STORE    EQU      3  
-REVERSED_WORD_NUMBER    EQU      2  
+NUMBER_WORD_TO_STORE    EQU      4
+REVERSED_WORD_NUMBER    EQU      6
 
 .data
     file                db      'RES.TXT', 0
@@ -20,78 +20,81 @@ start:
     mov     ax, @data
     mov     ds, ax
     mov     es, ax 
-    mov     ah, 09h
+    mov     ax, 3
+    int     10h
+    mov     ah, 9
     mov     dx, offset input_message
     int     21h  
-    mov     si, OFFSET buffer 
-    mov     bp, si            
+    mov     si, OFFSET buffer
+    mov     bp, si          
     mov     di, si            
     mov     al, " "
     mov     cx, maxSize+1
     mov     bl, REVERSED_WORD_NUMBER
 store_byte:
-    dec     cx              
-    cmp     al, " "         
-    je      bios_input      
+    dec     cx             
+    cmp     al, " "      
+    je      bios_input     
     stosb
 bios_input:
-    mov     dh, al          
+    mov     dh, al      
 key_input:
-    xor     ah, ah          
-    int     16h             
-    cmp     al, cr          
-    je      end_of_line    
-    cmp     al, " "         
-    jne     not_space       
-    cmp     dh, al          
-    je      bios_input      
-    inc     bh              
+    xor     ah, ah      
+    int     16h           
+    cmp     al, cr         
+    je      end_of_line      
+    cmp     al, " "       
+    jb      key_input    
+    jne     not_space     
+    cmp     dh, al 
+    je      bios_input    
+    inc     bh 
 not_space:
-    mov     ah, 0Eh         
-    int     10h             
+    mov     ah, 0Eh
+    int     10h
     cmp     bh, NUMBER_WORD_TO_STORE 
-    jb      to_loop         
-    je      store_byte      
-    stosb                   
-    xor     bh, bh          
-    dec     bl              
+    jb      to_loop 
+    je      store_byte 
+    stosb 
+    xor     bh, bh
+    dec     bl
     jnz     to_loop
-    mov     si, di          
+    mov     si, di
 to_loop:
     loop    bios_input  
-    mov     ah, 09h
+    mov     ah, 9
     mov     dx, offset size_limit
     int     21h
 end_of_line:
-    cmp     bp, di          
+    cmp     bp, di
     jne     no_short_string
-    mov     ah, 09h
+    mov     ah, 9
     mov     dx, offset too_short
     int     21h
     jmp     exit
 no_short_string:
     mov     al, " "        
-    cmp     byte ptr [di-1], al 
+    cmp     byte ptr [di-1], al
     je      last_space
-    stosb                       
+    stosb
 last_space:
-    cmp     [si], al            
-    jbe     output              
-    cmp     si, bp              
+    cmp     [si], al
+    jbe     output
+    cmp     si, bp
     je      output
-    mov     di, si              
-    mov     cx, -1              
+    mov     di, si
+    mov     cx, FFFFh
     repne   scasb               
     dec     di
 reversing:
     dec     di
-    cmp     si, di              
+    cmp     si, di
     jz      output
     lodsb
     mov     ah, [di]
     mov     [si-1], ah
     mov     [di], al
-    cmp     si, di              
+    cmp     si, di
     jne     reversing
 output:
     mov     ah, 09h 
@@ -106,7 +109,7 @@ output:
     mov     dx, bp
     mov     di, dx
     mov     cx, 0ffffh
-    repne   scasb 
+    repne   scasb
     not     cx
     dec     cx
     dec     cx
@@ -115,7 +118,7 @@ output:
     int     21h
     mov     ah, 40h
     mov     bx, 1 
-    int     21h   
+    int     21h  
 exit:
     xor     ah, ah
     int     16h 
