@@ -44,7 +44,6 @@ key_input:
     cmp     al, cr         
     je      end_of_line      
     cmp     al, " "       
-    jb      key_input    
     jne     not_space     
     cmp     dh, al 
     je      bios_input    
