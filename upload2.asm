@@ -83,7 +83,7 @@ last_space:
     cmp     si, bp
     je      output
     mov     di, si
-    mov     cx, FFFFh
+    mov     cx, 0FFFFh
     repne   scasb               
     dec     di
 reversing:
