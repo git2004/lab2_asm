@@ -2,88 +2,88 @@
 .186
 .stack 100h
 
-maxSize                 EQU     256
-cr                      EQU     0Dh
-lf                      EQU     0Ah
+maxSize                 EQU     256; директива которая присваивает число символьному имени, дает значение константе (макс число символов в строке которое вводится)
+cr                      EQU     0Dh; возврат каретки
+lf                      EQU     0Ah; перенос на след. строку
 NUMBER_WORD_TO_STORE    EQU      4
 REVERSED_WORD_NUMBER    EQU      6
 
 .data
-    file                db      'RES.TXT', 0
+    file                db      'RES.TXT', 0; db резервирует в памяти байт
     size_limit          db      cr, lf, 'More than 256 chars. Proccessing output.$'  
-    output_message      db      cr, lf, '___OUTPUT___', cr, lf, "$"
+    output_message      db      cr, lf, '___OUTPUT___', cr, lf, "$"; цр лф нужно для вывода с новой строки
     too_short           db      cr, lf, 'Not enough words to convert string. Exiting.$'
-    input_message       db      'Enter text: ', '$'
-    buffer              db      maxSize DUP(?)
+    input_message       db      'Enter text: ', '$'; это переменные которые хранят в себе адрес смещения
+    buffer              db      maxSize DUP(?); dup директива которая выделяет место mzsize раз (256 раз), выделяется только когда заупскается exe файл
 .code
 start:
     mov     ax, @data
     mov     ds, ax
     mov     es, ax 
-    mov     ax, 3
-    int     10h
-    mov     ah, 9
-    mov     dx, offset input_message
-    int     21h  
-    mov     si, OFFSET buffer
-    mov     bp, si          
-    mov     di, si            
-    mov     al, " "
-    mov     cx, maxSize+1
-    mov     bl, REVERSED_WORD_NUMBER
-store_byte:
-    dec     cx             
-    cmp     al, " "      
+    mov     ax, 3; грузим видео режим 
+    int     10h; прерывание видеосервиса биоса к-е устанавливает видео режим, в ah-ф-ция установки видеорежима, в al-сам режим, это нужно для очистки консоли
+    mov     ah, 9; функция биоса вывода на экран строки в аски формате до доллара, нужна для вывода приветсвтвующего сообщения, строка лежит по адресу ds:dx
+    mov     dx, offset input_message; для предыдущей функции загружаем в dx строку
+    int     21h; прерывание dos, чтобы вызвать фунцию 09h
+    mov     si, OFFSET buffer; сохранение адреса начала буфера (для поиска начала реверса или если его нет, чоб сравнить с bp)
+    mov     bp, si  ; всегда стоит в начале буфера        
+    mov     di, si; тут тоже самое для записи            
+    mov     al, " "; кладем пробле чтобы дальше нельзя было ввести слово с пробела
+    mov     cx, maxSize+1; +1 так как декремент в следующей метке всегда срабатывает, нужно его компенсировать
+    mov     bl, REVERSED_WORD_NUMBER; число слов для реверса
+store_byte:;когда число пробелов кратно 5 мы прыгаем сюда, здесь мы сраниваем введенный символ(*5й пробел) с пробелом, и пробел с которого слово начигается не записывается
+    dec     cx  ; для уменьшения числа циклов           
+    cmp     al, " "; без этой метки запишется в память будут записываться двойные пробелы (до и после слова), не сохраняет не пробел до и после слова
     je      bios_input     
     stosb
 bios_input:
-    mov     dh, al      
+    mov     dh, al ;сохранение предыдущего введенного символа в dh, это нужно, чтобы избежать двойных пробелов     
 key_input:
-    xor     ah, ah      
+    xor     ah, ah ; функция считывания нажатой клавиши, нужна чтобы сохранять в память символ нажатой клавиши, в al лежит аски код в ah - кейкод     
     int     16h           
-    cmp     al, cr         
+    cmp     al, cr ;смотрим введен ли сейчас enter        
     je      end_of_line      
-    cmp     al, " "       
+    cmp     al, " "  ;сраниввем с пробелом     
     jne     not_space     
-    cmp     dh, al 
+    cmp     dh, al ;сраниваем предыдущий символ с текущим, эта строчка нужна для избежания двойных пробелов
     je      bios_input    
-    inc     bh 
+    inc     bh; увеличиваем число пробелов в счетчике
 not_space:
-    mov     ah, 0Eh
-    int     10h
-    cmp     bh, NUMBER_WORD_TO_STORE 
+    mov     ah, 0Eh; функция видеосервиса биоса вывода символа в al, то что у нас лежит в al выводится на экран
+    int     10h; прерывние видеосервиса биоса, которое вызовет ф-цию в ah, в ah лежит функция вывода символа на дисплей
+    cmp     bh, NUMBER_WORD_TO_STORE ; сравнимаем счетчик с числом склов которое нам надо, переменная на 1 меньше чем надо так как первое слово не начинается с проблеа
     jb      to_loop 
-    je      store_byte 
+    je      store_byte ; когда число пробелов больше чем нужно, то этот пробел которым заканчивается слово запишется в память
     stosb 
-    xor     bh, bh
-    dec     bl
+    xor     bh, bh; обнуление счетчика
+    dec     bl; уменьшение счетчика слов для реверса
     jnz     to_loop
-    mov     si, di
+    mov     si, di; в si кладется адрес начала слова для реверса
 to_loop:
     loop    bios_input  
     mov     ah, 9
-    mov     dx, offset size_limit
+    mov     dx, offset size_limit; работает только кггда превышен лимит
     int     21h
-end_of_line:
-    cmp     bp, di
+end_of_line:; метка если введен enter
+    cmp     bp, di; срваниается начало буфера и di, если че-то записалось то di сдвинулся, если нет то остался раевен bp
     jne     no_short_string
     mov     ah, 9
-    mov     dx, offset too_short
+    mov     dx, offset too_short ;сообщение ооб ошибки
     int     21h
     jmp     exit
 no_short_string:
     mov     al, " "        
-    cmp     byte ptr [di-1], al
+    cmp     byte ptr [di-1], al; проверяет ввел ли пользователь пробел в самом конце строки, нужно чтобы знать где слово заказнчивается
     je      last_space
     stosb
 last_space:
-    cmp     [si], al
-    jbe     output
+    cmp     [si], al; это строка предостерегает от ситуации *
+    jbe     output; если у нас символ меньше или равен пробелу то это выход
     cmp     si, bp
     je      output
     mov     di, si
-    mov     cx, 0FFFFh
-    repne   scasb               
+    mov     cx, 0FFFFh ; это нужно чтобы просто передвинуть слова для реверса
+    repne   scasb ;нужно чтобы узнать длину слова для реверса, сначала si di стоят в начале слова для рверса, репне идет пока не станет пробел сдвигая на конец di за пробел    
     dec     di
 reversing:
     dec     di
@@ -99,13 +99,13 @@ output:
     mov     ah, 09h 
     mov     dx, offset output_message
     int     21h
-    mov     ah, 3Ch
-    mov     dx, offset file
-    xor     cx, cx
-    int     21h
-    mov     bx, ax
-    mov     ax, 4000h
-    mov     dx, bp
+    mov     ah, 3Ch; функция создания файла
+    mov     dx, offset file; в Dx лежит название файла в аски зиро нотации
+    xor     cx, cx; атрибуты файла
+    int     21h; прерывание доса чтобы вызвать ф-цию в ah
+    mov     bx, ax; в ax после данного прерывания сохраняется дескриптор файла, перекладываем в bx так как этого требует ф-ция 40h
+    mov     ax, 4000h; (функция вывода в файл) для функции 40h необходимо чтобы дескриптор находился в ax 40h-номер функции, 00-длина выводимой строки
+    mov     dx, bp; в dx кладется начало буфера, фунция 40h выводит функцию по адресу ds:dx
     mov     di, dx
     mov     cx, 0ffffh
     repne   scasb
@@ -113,14 +113,14 @@ output:
     dec     cx
     dec     cx
     int     21h   
-    mov     ah, 3Eh
+    mov     ah, 3Eh; фунция закрытия файла
     int     21h
-    mov     ah, 40h
-    mov     bx, 1 
-    int     21h  
+    mov     ah, 40h; ф-ция вывода на экран
+    mov     bx, 1 ; стандартный вывод 
+    int     21h  ; прерывание дос, вызов функции в ah
 exit:
-    xor     ah, ah
-    int     16h 
-    mov     ax, 4C00h      
+    xor     ah, ah ; ah=0 (программа будет ждать пока пользователь что-то нажмет), функция ожидания следующей нажатой клавиши
+    int     16h ; прерывнаие биоса которjt считывает нажатую клавмшу
+    mov     ax, 4C00h;   функция завершения программы    
     int     21h
     END     start
